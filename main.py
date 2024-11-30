@@ -6,6 +6,9 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 from collections import Counter
 
+# Store the original working directory
+original_cwd = os.getcwd()
+
 # Load configuration from config.json
 try:
     with open('config.json', 'r') as f:
@@ -30,8 +33,20 @@ if not os.path.isfile(ssh_key_file):
     print(f"Error: SSH key file '{ssh_key_file}' does not exist.")
     sys.exit(1)
 
-# Get the output file name from config
-output_file = config.get('output_file', 'commit_graph.png')
+# Create 'repos' directory if it doesn't exist
+repos_dir = os.path.join(original_cwd, 'repos')
+if not os.path.exists(repos_dir):
+    os.makedirs(repos_dir)
+
+# Create 'graphs' directory if it doesn't exist
+graphs_dir = os.path.join(original_cwd, 'graphs')
+if not os.path.exists(graphs_dir):
+    os.makedirs(graphs_dir)
+
+# Default the output file name to the repo name if not specified
+output_file = config.get('output_file')
+if not output_file:
+    output_file = f"{repo_name}.png"
 
 # Convert HTTPS URL to SSH URL if necessary
 if repo_url.startswith('https://github.com/'):
@@ -51,22 +66,22 @@ else:
     print("Error: Unsupported GitHub URL format.")
     sys.exit(1)
 
-# Check if the directory exists and contains a .git folder
-repo_path = os.path.join(os.getcwd(), repo_name)
+# Check if the repository exists in the 'repos' directory
+repo_path = os.path.join(repos_dir, repo_name)
 git_folder = os.path.join(repo_path, '.git')
 
 if not os.path.exists(repo_path) or not os.path.exists(git_folder):
-    print("Cloning the repository...")
+    print("Cloning the repository into 'repos' directory...")
     env = os.environ.copy()
     env['GIT_SSH_COMMAND'] = f"ssh -i {ssh_key_file}"
-    result = subprocess.run(['git', 'clone', ssh_url], env=env)
+    result = subprocess.run(['git', 'clone', ssh_url, repo_path], env=env)
     if result.returncode != 0:
         print("Error: Git clone failed. Please check your SSH key and repository URL.")
         sys.exit(1)
-    os.chdir(repo_name)
+    os.chdir(repo_path)
 else:
-    print(f"Repository '{repo_name}' already exists and is a valid Git repository.")
-    os.chdir(repo_name)
+    print(f"Repository '{repo_name}' already exists in 'repos' directory and is a valid Git repository.")
+    os.chdir(repo_path)
 
 # Get the git log
 try:
@@ -109,9 +124,13 @@ plt.xticks(rotation=45)
 plt.grid(True)
 plt.tight_layout()
 
-# Save the figure to a PNG file
-plt.savefig(output_file)
-print(f"Figure saved to {output_file}")
+# Change back to the original working directory
+os.chdir(original_cwd)
+
+# Save the figure to the 'graphs' directory
+output_path = os.path.join(graphs_dir, output_file)
+plt.savefig(output_path)
+print(f"Figure saved to {output_path}")
 
 # Optionally, display the figure
 plt.show()
